@@ -1,0 +1,86 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    name: Lint · Tipos · Testes de isolamento · Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16      # mesma imagem da produção
+        env:
+          POSTGRES_USER: saas_admin
+          POSTGRES_PASSWORD: ci_admin
+          POSTGRES_DB: postgres
+        ports: ["5434:5432"]
+        options: >-
+          --health-cmd "pg_isready -U saas_admin"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+
+    env:
+      # Mesmos papéis da produção: o app roda como factoria_app (sem BYPASSRLS).
+      DATABASE_URL: postgres://factoria_app:ci_app@localhost:5434/factoria_saas
+      MIGRATIONS_DATABASE_URL: postgres://factoria_owner:ci_owner@localhost:5434/factoria_saas
+      BETTER_AUTH_SECRET: ci-only-secret-nao-usar-em-producao-0123456789
+      BETTER_AUTH_URL: http://localhost:3000
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v4          # versão do pnpm vem do packageManager do package.json
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Criar papéis, banco e extensões (mesmo script do ambiente dev)
+        run: bash docker/postgres-init/01-factoria-saas.sh
+        env:
+          PGHOST: localhost
+          PGPORT: 5434
+          PGPASSWORD: ci_admin
+          POSTGRES_USER: saas_admin
+          FACTORIA_OWNER_PASSWORD: ci_owner
+          FACTORIA_APP_PASSWORD: ci_app
+
+      - name: Aplicar migrations (como factoria_owner)
+        run: pnpm db:migrate
+
+      - run: pnpm lint
+      - run: pnpm typecheck
+
+      - name: Testes de isolamento entre tenants (RLS)
+        run: pnpm test
+
+      - run: pnpm build
+
+  docker:
+    name: Imagem Docker (build, sem publicar)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - name: Build da imagem (erros aparecem como anotação)
+        run: |
+          set -o pipefail
+          if ! docker build --progress=plain -t factoria-app:ci . 2>&1 | tee build.log; then
+            msg=$(grep -vE '^#[0-9]+ (sha256|DONE|CACHED|\[internal\])' build.log | tail -80 | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')
+            echo "::error title=docker build::${msg}"
+            exit 1
+          fi

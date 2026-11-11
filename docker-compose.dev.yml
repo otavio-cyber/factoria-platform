@@ -1,0 +1,41 @@
+# Ambiente de DESENVOLVIMENTO local — espelha a produção (mesma imagem do Postgres, mesmos papéis).
+# Senhas fixas e fracas de propósito: só escuta em 127.0.0.1 e nunca vai para produção.
+# Uso: pnpm db:up | pnpm db:down | pnpm db:reset | pnpm db:psql
+name: factoria-dev
+
+services:
+  db:
+    image: pgvector/pgvector:pg16          # mesma imagem da produção
+    container_name: factoria-dev-db
+    environment:
+      POSTGRES_USER: saas_admin
+      POSTGRES_PASSWORD: dev_admin
+      POSTGRES_DB: postgres
+      FACTORIA_OWNER_PASSWORD: dev_owner
+      FACTORIA_APP_PASSWORD: dev_app
+    command: ["postgres", "-c", "shared_preload_libraries=pg_stat_statements"]
+    ports:
+      - "127.0.0.1:5434:5432"              # 5434 para não colidir com um Postgres já instalado
+    volumes:
+      - dev-pgdata:/var/lib/postgresql/data
+      - ./docker/postgres-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U saas_admin -d factoria_saas"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: factoria-dev-redis
+    command: ["redis-server", "--maxmemory-policy", "noeviction"]   # igual à produção (BullMQ)
+    ports:
+      - "127.0.0.1:6380:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  dev-pgdata:

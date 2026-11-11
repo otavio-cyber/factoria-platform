@@ -1,0 +1,56 @@
+{
+  "name": "factoria-saas",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "db:up": "docker compose -f docker-compose.dev.yml up -d --wait",
+    "db:down": "docker compose -f docker-compose.dev.yml down",
+    "db:reset": "docker compose -f docker-compose.dev.yml down -v && docker compose -f docker-compose.dev.yml up -d --wait",
+    "db:psql": "docker exec -it factoria-dev-db psql -U saas_admin -d factoria_saas",
+    "typecheck": "next typegen && tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:studio": "drizzle-kit studio",
+    "auth:generate": "auth generate --config lib/auth/cli.ts --output lib/db/auth-schema.ts",
+    "db:seed": "tsx scripts/seed.ts",
+    "build:scripts": "esbuild scripts/migrate.ts scripts/bootstrap-admin.ts scripts/import-menu.ts scripts/import-distancias.ts --bundle --platform=node --target=node22 --format=esm --outdir=dist-scripts --out-extension:.js=.mjs --tsconfig=tsconfig.json --alias:server-only=./scripts/server-only-shim.ts --banner:js=\"import { createRequire } from 'module'; const require = createRequire(import.meta.url);\" --log-level=warning"
+  },
+  "dependencies": {
+    "aws4fetch": "1.0.20",
+    "better-auth": "~1.7.6",
+    "drizzle-orm": "~0.45.3",
+    "next": "16.3.6",
+    "postgres": "^3.4.9",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "server-only": "^0.0.1",
+    "sonner": "^2.0.8",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@next/env": "16.3.6",
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^22.20.4",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "auth": "1.7.6",
+    "drizzle-kit": "~0.31.11",
+    "esbuild": "^0.28.2",
+    "eslint": "^9",
+    "eslint-config-next": "16.3.6",
+    "tailwindcss": "^4",
+    "tsx": "^4.23.15",
+    "typescript": "^5",
+    "vitest": "^5.0.2"
+  },
+  "packageManager": "pnpm@11.1.2",
+  "engines": {
+    "node": ">=22"
+  }
+}
